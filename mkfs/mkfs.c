@@ -128,14 +128,12 @@ main(int argc, char *argv[])
   iappend(rootino, &de, sizeof(de));
 
   for(i = 2; i < argc; i++){
-    // get rid of "user/"
-    char *shortname;
-    if(strncmp(argv[i], "user/", 5) == 0)
-      shortname = argv[i] + 5;
-    else
-      shortname = argv[i];
-    
-    assert(index(shortname, '/') == 0);
+    // Get the last component of the path
+    char *shortname = strrchr(argv[i], '/');
+    shortname = (shortname) ? shortname + 1 : argv[i];
+
+    // Assert that no '/' character is present in shortname
+    assert(strchr(shortname, '/') == NULL);
 
     if((fd = open(argv[i], 0)) < 0)
       die(argv[i]);

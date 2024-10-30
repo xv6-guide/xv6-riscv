@@ -42,3 +42,5 @@ SECTIONS
 
   PROVIDE(end = .);
 }
+
+ASSERT(_entry == 0x80000000, "_entry not at 0x80000000");

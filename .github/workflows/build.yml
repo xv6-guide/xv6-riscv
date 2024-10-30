@@ -1,0 +1,65 @@
+name: Build
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Check distribution
+      run: lsb_release -a
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        export DEBIAN_FRONTEND=noninteractive
+        sudo apt-get -qq update > /dev/null
+        sudo apt-get -qq install cmake expect gcc-riscv64-linux-gnu binutils-riscv64-linux-gnu qemu-system-misc > /dev/null
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+
+    - name: Set up ccache
+      run: |
+        ccache -s
+        ln -s $(which ccache) /usr/local/bin/riscv64-linux-gnu-gcc
+        ls -l /usr/local/bin/riscv64-linux-gnu-gcc
+
+    - name: Build xv6
+      run: |
+        export PATH="/usr/local/bin:$PATH"
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_INSTALL_PREFIX=xv6
+        make install
+
+    - name: Run xv6
+      run: |
+        cd build
+        cat << EOF > run_qemu.expect
+        #!/usr/bin/expect -f
+        spawn qemu-system-riscv64\
+            -machine virt\
+            -bios none\
+            -kernel xv6/kernel\
+            -m 128M\
+            -smp 3\
+            -nographic\
+            -global virtio-mmio.force-legacy=false\
+            -drive file=xv6/fs.img,if=none,format=raw,id=x0\
+            -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+        expect "$ "
+        send "ls\n"
+        expect "$ "
+        send "\01x"
+        EOF
+        chmod +x run_qemu.expect
+        ./run_qemu.expect
